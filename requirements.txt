@@ -1,0 +1,18 @@
+# Floors verified together on Python 3.13.9.
+pandas>=2.2.2
+numpy>=1.26.4
+scipy>=1.13.1
+scikit-learn>=1.5.1
+joblib>=1.4.2
+matplotlib>=3.9.2
+plotly>=5.24.1
+streamlit>=1.38.0
+pyyaml>=6.0.2
+pytest>=8.3.2
+
+# Streaming service (service/) and its tests/scripts.
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.8.0
+httpx>=0.27.0
+requests>=2.32.0

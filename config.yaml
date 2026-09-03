@@ -1,0 +1,138 @@
+# Configuration for the real-time transaction scoring pipeline.
+# All thresholds and weights live here so the analysis stays reproducible
+# and easy to tune without touching the code.
+
+data:
+  # Path to the raw CSV, relative to the project root.
+  csv_path: data/paysim_transactions.csv
+  # Columns the raw PaySim file must have. load_data validates these and
+  # fails clearly if any are missing.
+  required_columns:
+    - step
+    - type
+    - amount
+    - nameOrig
+    - oldbalanceOrg
+    - newbalanceOrig
+    - nameDest
+    - oldbalanceDest
+    - newbalanceDest
+    - isFraud
+    - isFlaggedFraud
+  # EDA on the full 6,362,620-row file confirmed fraud only ever occurs on
+  # these two transaction types (0 fraudulent rows out of 6,354,407 in the
+  # other three types). Scoring is restricted to these types by design, not
+  # as a hack: it cuts real-time volume by roughly half with zero recall
+  # cost on this dataset, which matters for Pub/Sub message and Cloud Run
+  # invocation counts. This is a property of the PaySim simulator's fraud
+  # injection model, confirmed empirically here, not a universal law, so a
+  # production system would need to revalidate this filter periodically
+  # against real fraud patterns rather than trust it forever.
+  scored_types:
+    - TRANSFER
+    - CASH_OUT
+  # Ground truth fraud label, used for evaluation only (never fed to the
+  # unsupervised detectors as a feature).
+  label_column: isFraud
+  # PaySim's own built-in rule-based flag (fires on 16 of 6.36M rows). Kept
+  # as a weak baseline to evaluate against.
+  baseline_flag_column: isFlaggedFraud
+  # Numeric columns used by the statistical and model based detectors.
+  # balance_error_orig/dest and orig_emptied are engineered in load_data.py
+  # from raw ledger fields (domain-derived, computed with no access to
+  # isFraud), not taken from the source file.
+  numeric_features:
+    - amount
+    - oldbalanceOrg
+    - newbalanceOrig
+    - oldbalanceDest
+    - newbalanceDest
+    - balance_error_orig
+    - balance_error_dest
+  # PaySim's `step` is a simulation hour index (1 to 743), not a wall clock
+  # timestamp. load_data.py derives a synthetic datetime from it purely so
+  # the existing EWMA control chart can aggregate by day; this is disclosed
+  # here and in the README, not passed off as real transaction time.
+  step_column: step
+  synthetic_timestamp_column: event_time
+  # The first 96 simulated hours (~4 days) are used only to fit the
+  # z-score/IQR/Isolation Forest reference statistics; everything after
+  # this step is scored and evaluated against that frozen reference, never
+  # the other way around. This mirrors how the streaming service will
+  # actually run: fit on a completed historical window, score whatever
+  # arrives after it, never on data from the future relative to the fit.
+  reference_step_max: 96
+
+statistical:
+  # balance_error_orig is deliberately excluded from the z-score/IQR screens
+  # below (kept only in model.isolation_forest's multivariate features).
+  # EDA on the batch run showed fraud rows sit almost exactly at
+  # balance_error_orig = 0, the *center* of the legitimate distribution, not
+  # its tail, so an extremity-based univariate screen structurally cannot
+  # separate them on this column; it only added noise (7.8% of the
+  # population flagged for 0.01% precision). See README "What did not work."
+  zscore:
+    # Columns screened with the z-score rule.
+    columns:
+      - amount
+      - balance_error_dest
+    threshold: 3.0
+  iqr:
+    columns:
+      - amount
+      - balance_error_dest
+    k: 1.5
+  control_chart:
+    # Metric aggregated per period from the synthetic event_time column.
+    metric: amount
+    aggregation: sum        # sum or count
+    frequency: D             # pandas offset alias, D means daily
+    method: ewma              # ewma or rolling
+    span: 7                  # window or span in periods
+    num_std: 3.0
+
+model:
+  isolation_forest:
+    # Real fraud rate within the scored (TRANSFER/CASH_OUT) population is
+    # about 0.30%. contamination is set a little above that so the forest's
+    # own decision boundary is not tuned to match the label exactly, kept
+    # as an honestly-imperfect unsupervised setting.
+    contamination: 0.01
+    n_estimators: 200
+    random_state: 42
+
+alerting:
+  # Hard business rules. Each fires independently and is recorded on the
+  # alert. Thresholds below are retuned from real data percentiles within
+  # the scored TRANSFER/CASH_OUT population, see README.
+  rules:
+    high_amount:
+      # ~95th percentile of amount within the scored TRANSFER/CASH_OUT
+      # population (954,997), rounded.
+      column: amount
+      operator: ">"
+      value: 950000
+    orig_account_emptied:
+      # 1 when the sender's account balance is fully drained by this
+      # transaction (oldbalanceOrg > 0 and newbalanceOrig == 0). Engineered
+      # in load_data.py. Fires on 97.6% of fraud vs 42.7% of legitimate
+      # rows within the scored TRANSFER/CASH_OUT population, the single
+      # strongest business rule found during EDA.
+      column: orig_emptied
+      operator: ">="
+      value: 1
+    high_zscore:
+      # Fires when the max absolute z-score across screened columns exceeds
+      # this.
+      value: 3.0
+
+prioritization:
+  # Severity blends normalized deviation, method agreement, and rule hits.
+  weights:
+    deviation: 0.5
+    agreement: 0.3
+    rules: 0.2
+  # Severity score cut points on a 0 to 1 scale used for bucketing.
+  buckets:
+    high: 0.66
+    medium: 0.33

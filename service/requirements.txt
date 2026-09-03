@@ -1,0 +1,13 @@
+# Leaner than the top-level requirements.txt: only what the deployed
+# Cloud Run container needs to serve /push and /health. No matplotlib,
+# plotly, streamlit, pytest, or the demo/test-only httpx/requests, all of
+# which are batch-pipeline or local-dev-only.
+pandas>=2.2.2
+numpy>=1.26.4
+scikit-learn>=1.5.1
+joblib>=1.4.2
+pyyaml>=6.0.2
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.8.0
+google-cloud-bigquery>=3.25.0
