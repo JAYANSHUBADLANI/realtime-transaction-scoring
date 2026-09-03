@@ -1,5 +1,7 @@
 # Real-Time Transaction Scoring
 
+[![tests](https://github.com/JAYANSHUBADLANI/realtime-transaction-scoring/actions/workflows/pytest.yml/badge.svg)](https://github.com/JAYANSHUBADLANI/realtime-transaction-scoring/actions/workflows/pytest.yml)
+
 Score financial transactions for fraud as they happen, not in an overnight
 batch. This repo is being built in stages: the batch scoring pipeline below
 is complete and evaluated against real fraud labels; a streaming path
