@@ -3,14 +3,18 @@
 [![tests](https://github.com/JAYANSHUBADLANI/realtime-transaction-scoring/actions/workflows/pytest.yml/badge.svg)](https://github.com/JAYANSHUBADLANI/realtime-transaction-scoring/actions/workflows/pytest.yml)
 
 Score financial transactions for fraud as they happen, not in an overnight
-batch. This repo is being built in stages: the batch scoring pipeline below
-is complete and evaluated against real fraud labels; a streaming path
-(Pub/Sub, a Cloud Run scorer, BigQuery, a live dashboard) is the next stage,
-tracked in [Project status](#project-status).
+batch. This repo was built in stages: a batch scoring pipeline evaluated
+against real fraud labels, then a streaming path over Pub/Sub, a Cloud Run
+scorer and BigQuery. The streaming path was deployed and verified end to
+end, and is not serving now, because billing is off on the project it ran
+in, so treat the numbers below as a record of that run rather than as a
+demo you can call. A Looker Studio dashboard on top of the
+BigQuery views is the one stage still open, tracked in
+[Project status](#project-status).
 
 [![Python](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Streaming](https://img.shields.io/badge/streaming-live%20on%20Cloud%20Run-brightgreen.svg)](#live-deployment)
+[![Streaming](https://img.shields.io/badge/streaming-deployed%20and%20verified-blue.svg)](#live-deployment)
 
 ## Problem statement
 
@@ -333,8 +337,8 @@ evaluated on its own before the next depends on it:
   and one-row-at-a-time scoring are bit-for-bit identical. See
   [Reference-based scoring](#reference-based-scoring-no-look-ahead). The
   frozen reference is persisted to `artifacts/` (`reference.json` +
-  `isolation_forest.joblib`), exactly what a Cloud Run scorer will load at
-  startup in the next stage.
+  `isolation_forest.joblib`), which is what the deployed Cloud Run scorer
+  loads at startup.
 - [x] **Streaming service logic**, proven locally with no GCP dependency:
   a FastAPI push subscriber (`service/main.py`) implementing Pub/Sub's real
   push contract, scoring against the frozen reference, deduplicating
