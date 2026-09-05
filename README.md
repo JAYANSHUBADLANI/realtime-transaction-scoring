@@ -72,8 +72,8 @@ label (see `src/load_data.py::engineer_features`):
 6,354,407 `PAYMENT` / `CASH_IN` / `DEBIT` rows. This pipeline scores only
 `TRANSFER`/`CASH_OUT` transactions (2,770,409 of 6,362,620, 43.5% of the
 file) by design. On this dataset that cuts real-time scoring volume by
-56.5% with zero recall cost, which will matter directly for Pub/Sub message
-counts and Cloud Run invocations once the streaming stage lands. This is a
+56.5% with zero recall cost, which bears directly on Pub/Sub message counts
+and Cloud Run invocations in the streaming path. This is a
 property of *this* simulator's fraud injection model, confirmed empirically
 here rather than assumed, and would need periodic revalidation against real
 fraud patterns in a production system rather than being trusted forever.
